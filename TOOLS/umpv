@@ -69,6 +69,8 @@ def send_files_to_mpv(conn: socket.socket | BinaryIO, files: Iterable[str]) -> N
         for f in files:
             f = f.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
             send(f'raw loadfile "{f}" append-play\n'.encode())
+            send("raw playlist-next weak\n".encode())
+
     except Exception:
         print("mpv is terminating or the connection was lost.", file=sys.stderr)
         sys.exit(1)

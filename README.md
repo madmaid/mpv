@@ -2,6 +2,18 @@
 
 # mpv
 
+## Preface
+
+This is a personal fork for umpv script to enable to play passed files immediately.
+
+sparse-checkout setup is recommended.
+
+To enable:
+    git clone --filter=blob:none --no-checkout git@github.com:madmaid/mpv.git
+    git sparse-checkout init --cone
+    git sparse-checkout add TOOLS/umpv
+    git sparse-checkout add README.md
+    git checkout master
 
 * [External links](#external-links)
 * [Overview](#overview)
