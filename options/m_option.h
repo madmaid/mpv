@@ -193,6 +193,9 @@ struct m_opt_choice_alternatives {
 const char *m_opt_choice_str(const struct m_opt_choice_alternatives *choices,
                              int value);
 
+const char *m_opt_choice_str_def(const struct m_opt_choice_alternatives *choices,
+                                 int value, const char *def);
+
 typedef int (*m_opt_generic_validate_fn)(struct mp_log *log, const m_option_t *opt,
                                          struct bstr name, void *value);
 
@@ -232,6 +235,7 @@ struct m_sub_options {
 #define CONF_TYPE_DOUBLE        (&m_option_type_double)
 #define CONF_TYPE_STRING        (&m_option_type_string)
 #define CONF_TYPE_STRING_LIST   (&m_option_type_string_list)
+#define CONF_TYPE_KV_LIST       (&m_option_type_keyvalue_list)
 #define CONF_TYPE_IMGFMT        (&m_option_type_imgfmt)
 #define CONF_TYPE_FOURCC        (&m_option_type_fourcc)
 #define CONF_TYPE_AFMT          (&m_option_type_afmt)
@@ -590,7 +594,7 @@ static inline int m_option_set_node(const m_option_t *opt, void *dst,
 
 // Call m_option_parse for strings, m_option_set_node otherwise.
 int m_option_set_node_or_string(struct mp_log *log, const m_option_t *opt,
-                                const char *name, void *dst, struct mpv_node *src);
+                                struct bstr name, void *dst, struct mpv_node *src);
 
 // see m_option_type.get
 static inline int m_option_get_node(const m_option_t *opt, void *ta_parent,

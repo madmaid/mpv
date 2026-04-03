@@ -7,7 +7,6 @@ mpv provides the built-in module ``mp``, which contains functions to send
 commands to the mpv core and to retrieve information about playback state, user
 settings, file information, and so on.
 
-These scripts can be used to control mpv in a similar way to slave mode.
 Technically, the Lua code uses the client API internally.
 
 Example
@@ -62,8 +61,7 @@ that uses the ``.foo`` file extension.
 mpv also appends the top level directory of the script to the start of Lua's
 package path so you can import scripts from there too. Be aware that this will
 shadow Lua libraries that use the same package path. (Single file scripts do not
-include mpv specific directories in the Lua package path. This was silently
-changed in mpv 0.32.0.)
+include mpv specific directories in the Lua package path.)
 
 Using a script directory is the recommended way to package a script that
 consists of multiple source files, or requires other files (you can use
@@ -101,17 +99,14 @@ The event loop will wait for events and dispatch events registered with
 ``mp.register_event``. It will also handle timers added with ``mp.add_timeout``
 and similar (by waiting with a timeout).
 
-Since mpv 0.6.0, the player will wait until the script is fully loaded before
-continuing normal operation. The player considers a script as fully loaded as
-soon as it starts waiting for mpv events (or it exits). In practice this means
-the player will more or less hang until the script returns from the main chunk
-(and ``mp_event_loop`` is called), or the script calls ``mp_event_loop`` or
+The player will wait until the script is fully loaded before continuing normal
+operation. The player considers a script as fully loaded as soon as it starts
+waiting for mpv events (or it exits). In practice this means the player will
+more or less hang until the script returns from the main chunk (and
+``mp_event_loop`` is called), or the script calls ``mp_event_loop`` or
 ``mp.dispatch_events`` directly. This is done to make it possible for a script
-to fully setup event handlers etc. before playback actually starts. In older
-mpv versions, this happened asynchronously. With mpv 0.29.0, this changes
-slightly, and it merely waits for scripts to be loaded in this manner before
-starting playback as part of the player initialization phase. Scripts run though
-initialization in parallel. This might change again.
+to fully setup event handlers etc. before playback actually starts. Scripts run
+though initialization in parallel.
 
 mp functions
 ------------
@@ -175,7 +170,7 @@ The ``mp`` module is preloaded, although it can be loaded manually with
     as possible), and upon completion, fn is called. fn has three arguments:
     ``fn(success, result, error)``:
 
-         ``success``
+        ``success``
             Always a Boolean and is true if the command was successful,
             otherwise false.
 
@@ -420,7 +415,7 @@ The ``mp`` module is preloaded, although it can be loaded manually with
     and the function fn is a Lua function value.
 
     Some events have associated data. This is put into a Lua table and passed
-    as argument to fn. The Lua table by default contains a ``name`` field,
+    as argument to fn. The Lua table by default contains a ``event`` field,
     which is a string containing the event name. If the event has an error
     associated, the ``error`` field is set to a string describing the error,
     on success it's not set.
@@ -446,7 +441,7 @@ The ``mp`` module is preloaded, although it can be loaded manually with
     the property will be passed as second argument to ``fn``, using
     ``mp.get_property_<type>`` to retrieve it. This means if ``type`` is for
     example ``string``, ``fn`` is roughly called as in
-    ``fn(name, mp.get_property_string(name))``.
+    ``fn(name, mp.get_property(name))``.
 
     If possible, change events are coalesced. If a property is changed a bunch
     of times in a row, only the last change triggers the change function. (The
@@ -491,6 +486,7 @@ The ``mp`` module is preloaded, although it can be loaded manually with
     the timer is re-added after the function fn is run.
 
     Returns a timer object. The timer object provides the following methods:
+
         ``stop()``
             Disable the timer. Does nothing if the timer is already disabled.
             This will remember the current elapsed time when stopping, so that
@@ -913,8 +909,7 @@ strictly part of the guaranteed API.
 mp.input functions
 --------------------
 
-This module lets scripts get textual input from the user using the console
-REPL.
+This module lets scripts get textual input from the user using the console.
 
 ``input.get(table)``
     Show the console to let the user enter text.
@@ -929,11 +924,16 @@ REPL.
         the text in the console.
 
     ``keep_open``
-        Whether to keep the console open on submit. Defaults to ``false``.
+        Whether to keep the console open on submit, allowing further input.
+        Defaults to ``false``.
+
+        If calling ``input.get()`` or ``input.select()`` again from inside the
+        ``submit`` callback, setting this option to ``true`` allows a seamless
+        transition without the console closing and reopening.
 
     ``opened``
         A callback invoked when the console is shown. This can be used to
-        present a list of options with ``input.set_log()``.
+        override keybinds set by the console with ``mp.add_forced_key_binding()``.
 
     ``edited``
         A callback invoked when the text changes. The first argument is the text
@@ -941,14 +941,21 @@ REPL.
 
     ``complete``
         A callback invoked when the user edits the text or moves the cursor. The
-        first argument is the text before the cursor. The callback should return
-        a table of the string candidate completion values and the 1-based cursor
+        first argument is the text before the cursor, and the second argument is
+        a response function which can be called to present completion values to
+        the user.
+
+        The first argument to the response function is a table of the string
+        candidate completion values, and the second argument is the 1-based cursor
         position from which the completion starts. console will show the
         completions that fuzzily match the text between this position and the
-        cursor and allow selecting them.
+        cursor, which the user can select with ``TAB``. The completions will only
+        be shown to the user if the text before the cursor has not since changed.
+        The response function should be called with an empty table if there are no
+        completion values to display.
 
-        The third and optional return value is a string that will be appended to
-        the input line without displaying it in the completions.
+        The third and optional argument to the response function is a string that
+        will be appended to the input line without displaying it in the completions.
 
     ``autoselect_completion``
         Whether to automatically select the first completion on submit if one
@@ -975,20 +982,23 @@ REPL.
         among the ones stored for ``input.get()`` calls. Defaults to the calling
         script name with ``prompt`` appended.
 
+    ``console_opt_overrides``
+        A table containing configuration overrides for the console script.
+        Can be used to change the visual style of the text input, among other things.
+        See `CONSOLE`_ for the full list of options.
+
 ``input.terminate()``
-    Close the console.
+    Closes any currently active input request. This will not close
+    requests made by other scripts.
 
 ``input.log(message, style, terminal_style)``
-    Add a line to the log buffer. ``style`` can contain additional ASS tags to
-    apply to ``message``, and ``terminal_style`` can contain escape sequences
-    that are used when the console is displayed in the terminal.
-
-``input.log_error(message)``
-    Helper to add a line to the log buffer with the same color as the one used
-    for commands that error. Useful when the user submits invalid input.
+    Add a line to the log buffer of the latest ``input.get()`` request.
+    ``style`` can contain additional ASS tags to apply to ``message``,
+    and ``terminal_style`` can contain escape sequences that are used
+    when the console is displayed in the terminal.
 
 ``input.set_log(log)``
-    Replace the entire log buffer.
+    Replace the entire log buffer of the latest ``input.get()`` request.
 
     ``log`` is a table of strings, or tables with ``text``, ``style`` and
     ``terminal_style`` keys.
@@ -1025,7 +1035,33 @@ REPL.
         the 1-based index of the selected item.
 
     ``keep_open``
-        Whether to keep the console open on submit. Defaults to ``false``.
+        Whether to keep the console open on submit, allowing further input.
+        Defaults to ``false``.
+
+        If calling ``input.get()`` or ``input.select()`` again from inside the
+        ``submit`` callback, setting this option to ``true`` allows a seamless
+        transition without the console closing and reopening.
+
+    ``opened``
+        A callback invoked when the console is shown. This can be used to
+        override keybinds set by the console with ``mp.add_forced_key_binding()``.
+
+    ``closed``
+        A callback invoked when the console is hidden, either because
+        ``input.terminate()`` was invoked from the other callbacks, or because
+        the user closed it with a key binding. The first argument is the text in
+        the console, and the second argument is the cursor position.
+
+    ``default_text``
+        A string to pre-fill the input field with.
+
+    ``cursor_position``
+        The initial cursor position, starting from 1.
+
+    ``console_opt_overrides``
+        A table containing configuration overrides for the console script.
+        Can be used to change the visual style of the select window, among other things.
+        See `CONSOLE`_ for the full list of options.
 
     Example:
 
